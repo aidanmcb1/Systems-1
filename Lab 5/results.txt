@@ -1,0 +1,26 @@
+GCC 1
+Unoptimized quicksort: 3357.801 ms
+Optimized quicksort: 3329.879 ms
+Qsort: 3329.879 ms
+GCC 2
+Unoptimized quicksort: 3581.344 ms
+Optimized quicksort: 3521.226 ms
+Qsort: 3521.226 ms
+GCC 3
+Unoptimized quicksort: 3578.864 ms
+Optimized quicksort: 3444.119 ms
+Qsort: 3444.119 ms
+CLANG 1
+Unoptimized quicksort: 3388.659 ms
+Optimized quicksort: 3434.090 ms
+Qsort: 3434.090 ms
+CLANG 2
+Unoptimized quicksort: 3505.612 ms
+Optimized quicksort: 3394.906 ms
+Qsort: 3394.906 ms
+CLANG 3
+Unoptimized quicksort: 3417.171 ms
+Optimized quicksort: 3306.972 ms
+Qsort: 3306.972 ms
+
+They all look pretty dead even. Either my optimizations are poor or the compiler flags affected timings. It seemed to run faster without -o3

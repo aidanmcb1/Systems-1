@@ -1,0 +1,1 @@
+I originally thought that I could include the entire source code unchanged but the program grew every time I added to the print statement. I remembered that you could cast numbers as characters and had the idea to make newlines and other characters with numbers in printf.
