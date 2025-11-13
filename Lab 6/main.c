@@ -100,7 +100,7 @@ double gflops(const double n, const double elapsedTime) {
 int main () {
     openblas_set_num_threads(1);
 
-    const int n = 2000, m = 2000, p = 2000;
+    const int n = 4000, m = 4000, p = 4000;
     double *a = malloc(n * m * sizeof(double));
     double *b = malloc(n * p * sizeof(double));
     double *cNaive = malloc(m * p * sizeof(double));
@@ -131,31 +131,31 @@ int main () {
     naive(a, b, cNaive, m, n, p);
     double end = now_ms();
     double time = end - start;
-    printf("Naive: %.4f ms: %.4f GLOPS\n", time, gflops(n, (int)time));
+    printf("Naive: %.4f ms: %.4f GFLOPS\n", time, gflops(n, (int)time));
 
     start = now_ms();
     optimized_reorder(a, b, cReorder, m, n, p);
     end = now_ms();
     time = end - start;
-    printf("Reordered loops: %.4f ms: %.4f GLOPS\n", time, gflops(n, (int)time));
+    printf("Reordered loops: %.4f ms: %.4f GFLOPS\n", time, gflops(n, (int)time));
 
     start = now_ms();
     optimized_blocking(a, b, cBlocking, m, n, p);
     end = now_ms();
     time = end - start;
-    printf("Blocking: %.4f ms: %.4f GLOPS\n", time, gflops(n, (int)time));
+    printf("Blocking: %.4f ms: %.4f GFLOPS\n", time, gflops(n, (int)time));
 
     start = now_ms();
     optimized_combined(a, b, cCombined, m, n, p);
     end = now_ms();
     time = end - start;
-    printf("Combined optimizations: %.4f ms: %.4f GLOPS\n", time, gflops(n, (int)time));
+    printf("Combined optimizations: %.4f ms: %.4f GFLOPS\n", time, gflops(n, (int)time));
 
     start = now_ms();
     cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, m, p, n, 1.0, a, n, b, p, 0.0, cOpenBlas, p);
     end = now_ms();
     time = end - start;
-    printf("OpenBlas: %.4f ms: %.4f GLOPS\n", time, gflops(n, (int)time));
+    printf("OpenBlas: %.4f ms: %.4f GFLOPS\n", time, gflops(n, (int)time));
 
     printf("Relative error:\n");
     printf("Naive: %.12f%%\n", (frobeniusNorm(cNaive, cOpenBlas, m * p, 1) / frobeniusNorm(cNaive, cOpenBlas, m * p, 0)) * 100);
