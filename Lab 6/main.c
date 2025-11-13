@@ -93,6 +93,10 @@ double frobeniusNorm(const double *a, const double *b, const size_t n, const int
     return sqrt(total);
 }
 
+double gflops(const double n, const double elapsedTime) {
+    return ((n * n * n) * 2) / ((elapsedTime / 1000) * 1000000000);
+}
+
 int main () {
     openblas_set_num_threads(1);
 
@@ -123,38 +127,41 @@ int main () {
 
     printf("At n = %d\n", n);
 
-    const double startNaive = now_ms();
+    double start = now_ms();
     naive(a, b, cNaive, m, n, p);
-    const double endNaive = now_ms();
-    printf("Naive: %f ms\n", endNaive - startNaive);
+    double end = now_ms();
+    double time = end - start;
+    printf("Naive: %.4f ms: %.4f GLOPS\n", time, gflops(n, (int)time));
 
-    const double startReorder = now_ms();
+    start = now_ms();
     optimized_reorder(a, b, cReorder, m, n, p);
-    const double endReorder = now_ms();
-    printf("Reordered loops: %f ms\n", endReorder - startReorder);
+    end = now_ms();
+    time = end - start;
+    printf("Reordered loops: %.4f ms: %.4f GLOPS\n", time, gflops(n, (int)time));
 
-    const double startBlocking = now_ms();
+    start = now_ms();
     optimized_blocking(a, b, cBlocking, m, n, p);
-    const double endBlocking = now_ms();
-    printf("Blocking: %f ms\n", endBlocking - startBlocking);
+    end = now_ms();
+    time = end - start;
+    printf("Blocking: %.4f ms: %.4f GLOPS\n", time, gflops(n, (int)time));
 
-    const double startCombined = now_ms();
+    start = now_ms();
     optimized_combined(a, b, cCombined, m, n, p);
-    const double endCombined = now_ms();
-    printf("Combined optimizations: %f ms\n", endCombined - startCombined);
+    end = now_ms();
+    time = end - start;
+    printf("Combined optimizations: %.4f ms: %.4f GLOPS\n", time, gflops(n, (int)time));
 
-    const double startOpenBlas = now_ms();
+    start = now_ms();
     cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, m, p, n, 1.0, a, n, b, p, 0.0, cOpenBlas, p);
-    const double endOpenBlas = now_ms();
-    printf("OpenBlas: %f ms\n\n", endOpenBlas - startOpenBlas);
+    end = now_ms();
+    time = end - start;
+    printf("OpenBlas: %.4f ms: %.4f GLOPS\n", time, gflops(n, (int)time));
 
     printf("Relative error:\n");
     printf("Naive: %.12f%%\n", (frobeniusNorm(cNaive, cOpenBlas, m * p, 1) / frobeniusNorm(cNaive, cOpenBlas, m * p, 0)) * 100);
     printf("Reordered loops: %.12f%%\n", (frobeniusNorm(cReorder, cOpenBlas, m * p, 1) / frobeniusNorm(cReorder, cOpenBlas, m * p, 0)) * 100);
     printf("Blocking: %.12f%%\n", (frobeniusNorm(cBlocking, cOpenBlas, m * p, 1) / frobeniusNorm(cBlocking, cOpenBlas, m * p, 0)) * 100);
     printf("Combined: %.12f%%\n", (frobeniusNorm(cCombined, cOpenBlas, m * p, 1) / frobeniusNorm(cCombined, cOpenBlas, m * p, 0)) * 100);
-
-
 
     free(a);
     free(b);
