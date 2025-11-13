@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <math.h>
 #include <time.h>
 #include <openblas/cblas.h>
 #include <openblas/openblas_config.h>
@@ -27,7 +28,7 @@ void optimized_reorder(const double* A, const double* B, double* C, const size_t
 }
 
 void optimized_blocking(const double* A, const double* B, double* C, const size_t m, const size_t n, const size_t p) {
-    const size_t block_size = 32;
+    const size_t block_size = 128;
 
     for (size_t i = 0; i < m; i += block_size) {
         for (size_t j = 0; j < p; j += block_size) {
@@ -49,7 +50,7 @@ void optimized_blocking(const double* A, const double* B, double* C, const size_
 }
 
 void optimized_combined(const double* A, const double* B, double* C, const size_t m, const size_t n, const size_t p) {
-    const size_t block_size = 32;
+    const size_t block_size = 128;
 
     for (size_t i = 0; i < m; i += block_size) {
         for (size_t j = 0; j < p; j += block_size) {
@@ -80,6 +81,16 @@ static void fill_random(double *a, const size_t n) {
     for (size_t i = 0; i < n; ++i) {
         a[i] = (double)rand()/RAND_MAX*2.0-1.0 + rand();
     }
+}
+
+//type 1 for test - ref norms, 0 for single matrix norms
+double frobeniusNorm(const double *a, const double *b, const size_t n, const int type) {
+    double total = 0.0;
+    for (int i = 0; i < n; ++i) {
+        const double difference = a[i] - (b[i] * type);
+        total += (difference * difference);
+    }
+    return sqrt(total);
 }
 
 int main () {
@@ -135,7 +146,13 @@ int main () {
     const double startOpenBlas = now_ms();
     cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, m, p, n, 1.0, a, n, b, p, 0.0, cOpenBlas, p);
     const double endOpenBlas = now_ms();
-    printf("OpenBlas: %f ms\n", endOpenBlas - startOpenBlas);
+    printf("OpenBlas: %f ms\n\n", endOpenBlas - startOpenBlas);
+
+    printf("Relative error:\n");
+    printf("Naive: %.12f%%\n", (frobeniusNorm(cNaive, cOpenBlas, m * p, 1) / frobeniusNorm(cNaive, cOpenBlas, m * p, 0)) * 100);
+    printf("Reordered loops: %.12f%%\n", (frobeniusNorm(cReorder, cOpenBlas, m * p, 1) / frobeniusNorm(cReorder, cOpenBlas, m * p, 0)) * 100);
+    printf("Blocking: %.12f%%\n", (frobeniusNorm(cBlocking, cOpenBlas, m * p, 1) / frobeniusNorm(cBlocking, cOpenBlas, m * p, 0)) * 100);
+    printf("Combined: %.12f%%\n", (frobeniusNorm(cCombined, cOpenBlas, m * p, 1) / frobeniusNorm(cCombined, cOpenBlas, m * p, 0)) * 100);
 
 
 
