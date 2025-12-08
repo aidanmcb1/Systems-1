@@ -1,8 +1,14 @@
+#include "edit_distance.h"
 #include <immintrin.h>
 #include <string.h>
+#include <pthread.h>
+#include <stdio.h>
+#include <unistd.h>
+#include <stdlib.h>
+
 
 //choose minimum of 3 int
-int minimum(int a, int b, int c) {
+int minimum3(const int a, const int b, const int c) {
     int m = a;
     if (b < m) {
         m = b;
@@ -13,13 +19,20 @@ int minimum(int a, int b, int c) {
     return m;
 }
 
+int minimum2(const int a, const int b) {
+    if (a < b) {
+        return a;
+    }
+    return b;
+}
+
 //choose minimum of 3 m256i
 __m256i avxMin(const __m256i a, const __m256i b, const __m256i c) {
     return _mm256_min_epi32(_mm256_min_epi32(a, b), c);
 }
 
 //does the big math, run on the threads
-void compute_tile_avx(const char *string1Point, const char *string2Point, size_t tile_size, const size_t h, const size_t w, const int topLeft, int *rowEdgePoint, int *columnEdgePoint, int *cornerOutPoint) {
+void avxMath(const char *string1Point, const char *string2Point, size_t tile_size, const size_t h, const size_t w, const int topLeft, int *rowEdgePoint, int *columnEdgePoint, int *cornerOutPoint) {
 
     //just a vector of only 1
     const __m256i v_ones = _mm256_set1_epi32(1);
@@ -54,8 +67,7 @@ void compute_tile_avx(const char *string1Point, const char *string2Point, size_t
         const size_t iMin = (wave < w) ? 0 : (wave - w + 1);
         const size_t iMax = (wave < h) ? wave : (h - 1);
 
-        size_t k = iMin;
-        for (; k + 7 <= iMax; k += 8) {
+        for (size_t k = iMin; k + 7 <= iMax; k += 8) {
             const __m256i vectorInsert = _mm256_loadu_si256((__m256i*)&previousBufferPoint[k]);
             const __m256i vectorDelete = _mm256_loadu_si256((__m256i*)&previousBufferPoint[k - 1]);
             const __m256i vectorSub = _mm256_loadu_si256((__m256i*)&secondPreviousBufferPoint[k - 1]);
@@ -117,6 +129,187 @@ void compute_tile_avx(const char *string1Point, const char *string2Point, size_t
     }
 }
 
-int edit_distance(const char *str1, const char *str2, size_t len) {
-    return 1;
+struct threadArguments {
+    pthread_barrier_t *barrier;
+
+    const char *string1;
+    const char *string2;
+    int *rowEdge;
+    int *columnEdge;
+    int *corners;
+
+    size_t length;
+    size_t tileSize;
+    size_t tileCountI;
+    size_t tileCountJ;
+
+    size_t threadID;
+    size_t threadCount;
+};
+
+void *computeTile(void *arg) {
+    const struct threadArguments *args = (struct threadArguments *)arg;
+
+    //grab values from struct
+    const char *string1 = args->string1;
+    const char *string2 = args->string2;
+    int *rowEdge = args->rowEdge;
+    int *columnEdge = args->columnEdge;
+    int *corners = args->corners;
+    const size_t length = args->length;
+    const size_t tileSize = args->tileSize;
+    const size_t tileCountI = args->tileCountI;
+    const size_t tileCountJ = args->tileCountJ;
+    const size_t threadCount = args->threadCount;
+    const size_t threadID = args->threadID;
+
+    const size_t totalWaves = tileCountI + tileCountJ - 1;
+
+    //wavefront loop
+    for (size_t wave = 0; wave < totalWaves; wave++) {
+
+        const size_t tileMin = (wave < tileCountI) ? 0 : (wave - tileCountJ + 1);
+        const size_t tileMax = (wave < tileCountI) ? wave : (tileCountI - 1);
+
+        for (size_t ti = tileMin + threadID; ti <= tileMax; ti += threadCount) {
+
+            const size_t tj = wave - ti;
+
+            //finding exact tile size based on predetermined size from user
+            const size_t iStart = ti * tileSize + 1;
+            const size_t jStart = tj * tileSize + 1;
+
+            const size_t iEnd = minimum2(iStart + tileSize - 1, length);
+            const size_t jEnd = minimum2(jStart + tileSize - 1, length);
+
+            const size_t height = iEnd - iStart + 1;
+            const size_t width = jEnd - jStart + 1;
+
+            int currentCorner;
+            if (ti == 0 && tj == 0) {
+                currentCorner = 0;
+            } else if (ti == 0) {
+                currentCorner = rowEdge[jStart - 1];
+            } else if (tj == 0) {
+                currentCorner = columnEdge[iStart - 1];
+            } else {
+                currentCorner = corners[tj - 1];
+            }
+
+            const int bottomRightCorner = rowEdge[jStart + width - 1];
+
+            // Intra-tile computation
+            avxMath(
+                &string1[iStart - 1],
+                &string2[jStart - 1],
+                tileSize,
+                height,
+                width,
+                currentCorner,
+                &rowEdge[jStart],
+                &columnEdge[iStart],
+                &corners[tj]
+            );
+
+            corners[tj] = bottomRightCorner;
+        }
+
+        // Wait until other threads finish intra-tile operations
+        pthread_barrier_wait(args->barrier);
+    }
+
+    return NULL;
+}
+
+int editDistance(const char *string1, const char *string2, const size_t length) {
+
+    if (length == 0) {
+        return 0;
+    }
+    if (length == 1) {
+        return (string1[0] == string2[0]) ? 0 : 1;
+    }
+
+
+    //automatically grabs all available threads from the computer or 1 if it messes up
+    long nproc = sysconf(_SC_NPROCESSORS_ONLN);
+    if (nproc < 1) {
+        nproc = 1;
+    }
+
+    const size_t tileSize = 250;
+
+    const size_t tileCountI = (length + tileSize - 1) / tileSize;
+    const size_t tileCountJ = (length + tileSize - 1) / tileSize;
+
+    //edges and corners allocation
+    int *rowEdge = (int *)malloc((length + 1) * sizeof(int));
+    int *columnEdge = (int *)malloc((length + 1) * sizeof(int));
+    int *corners = (int *)malloc(tileCountJ * sizeof(int));
+
+    if (!rowEdge || !columnEdge || !corners) {
+        free(rowEdge);
+        free(columnEdge);
+        free(corners);
+        return -1;
+    }
+
+    //fill the edges
+    for (size_t k = 0; k <= length; k++) {
+        rowEdge[k] = k;
+    }
+    for (size_t k = 0; k <= length; k++) {
+        columnEdge[k] = k;
+    }
+
+    const size_t minimumDimension = minimum2(tileCountI, tileCountJ);
+
+    size_t threadCount = (size_t)nproc;
+
+    if (threadCount > minimumDimension) {
+        threadCount = minimumDimension;
+    }
+    if (length <= tileSize) {
+        threadCount = 1;
+    }
+
+    pthread_t threads[threadCount];
+    struct threadArguments threadArguments[threadCount];
+
+    pthread_barrier_t barrier;
+    pthread_barrier_init(&barrier, NULL, threadCount);
+
+    // Spawn worker threads
+    for (size_t i = 0; i < threadCount; i++) {
+        threadArguments[i].barrier = &barrier;
+        threadArguments[i].string1 = string1;
+        threadArguments[i].string2 = string2;
+        threadArguments[i].rowEdge = rowEdge;
+        threadArguments[i].columnEdge = columnEdge;
+        threadArguments[i].corners = corners;
+
+        threadArguments[i].length = length;
+        threadArguments[i].tileSize = tileSize;
+        threadArguments[i].tileCountI = tileCountI;
+        threadArguments[i].tileCountJ = tileCountJ;
+
+        threadArguments[i].threadID = i;
+        threadArguments[i].threadCount = threadCount;
+
+        pthread_create(&threads[i], NULL, computeTile, &threadArguments[i]);
+    }
+
+    for (size_t i = 0; i < threadCount; i++) {
+        pthread_join(threads[i], NULL);
+    }
+
+    const int result = rowEdge[length];
+
+    pthread_barrier_destroy(&barrier);
+
+    free(rowEdge);
+    free(columnEdge);
+    free(corners);
+
+    return result;
 }
