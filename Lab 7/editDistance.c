@@ -1,11 +1,10 @@
-#include "edit_distance.h"
-#include <immintrin.h>
+#include "editDistance.h"
+#include <x86intrin.h>
 #include <string.h>
 #include <pthread.h>
 #include <stdio.h>
 #include <unistd.h>
 #include <stdlib.h>
-
 
 //choose minimum of 3 int
 int minimum3(const int a, const int b, const int c) {
