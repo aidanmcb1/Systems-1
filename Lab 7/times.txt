@@ -1,0 +1,35 @@
+Runs
+
+Tile size 250
+37.1203
+37.2349
+38.2016
+
+Tile size 500
+29.5114
+30.4433
+30.0717
+
+Tile size 1000
+28.8418
+29.9093
+31.5827
+
+Tile size 800
+28.5079
+28.2227
+28.1467
+
+Tile size 10000
+28.4640
+28.2246
+28.2828
+
+Tile size 50000
+38.3367
+38.5632
+39.0244
+
+800 wins, measured over 3 runs each
+
+800 seems to be best for my machine (6 cores/12 threads total). 1000 has similar performance but i think the memory usage being higher is affecting how well it works. the very large sizes made it very slow for the threads to get through the tiles, so 800 is the sweet spot.

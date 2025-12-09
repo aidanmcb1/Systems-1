@@ -13,14 +13,14 @@ static inline char *randomString(size_t n) {
     return string;
 }
 
-int main() {
+void tests() {
     char string1[] = "kitten";
     char string2[] = "sitting";
-    printf("Basic correctness. Expected: 3. Actual %d\n", editDistance(string1, string2, 6));
+    printf("Basic correctness. Expected: 2. Actual %d\n", editDistance(string1, string2, 6));
 
     char string3[] = "stujwbfaxm";
     char string4[] = "vuxaqraccz";
-    printf("Basic correctness (random). Expected: 10. Actual %d\n", editDistance(string3, string4, 10));
+    printf("Basic correctness (random). Expected: 9. Actual %d\n", editDistance(string3, string4, 10));
 
     char string5[] = "sitting";
     char string6[] = "sitting";

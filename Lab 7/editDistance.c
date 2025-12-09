@@ -66,7 +66,8 @@ void avxMath(const char *string1Point, const char *string2Point, size_t tile_siz
         const size_t iMin = (wave < w) ? 0 : (wave - w + 1);
         const size_t iMax = (wave < h) ? wave : (h - 1);
 
-        for (size_t k = iMin; k + 7 <= iMax; k += 8) {
+        size_t k = iMin;
+        for (; k + 7 <= iMax; k += 8) {
             const __m256i vectorInsert = _mm256_loadu_si256((__m256i*)&previousBufferPoint[k]);
             const __m256i vectorDelete = _mm256_loadu_si256((__m256i*)&previousBufferPoint[k - 1]);
             const __m256i vectorSub = _mm256_loadu_si256((__m256i*)&secondPreviousBufferPoint[k - 1]);
@@ -101,6 +102,19 @@ void avxMath(const char *string1Point, const char *string2Point, size_t tile_siz
 
             _mm256_storeu_si256((__m256i*)&currentBufferPoint[k], vectorResult);
         }
+
+        for (; k <= iMax; k++) {
+            const int previousDelete = previousBufferPoint[k-1];
+            const int previousInsert = previousBufferPoint[k];
+            const int previousSub = secondPreviousBufferPoint[k-1];
+
+            const int cost = (string1Point[k] == string2Point[wave - k]) ? 0 : 1;
+
+            const int val = minimum3(previousDelete + 1, previousInsert + 1, previousSub + cost);
+
+            currentBufferPoint[k] = val;
+        }
+
 
         //edges for multithreading purposes
         const size_t start = iMin;
@@ -236,7 +250,7 @@ int editDistance(const char *string1, const char *string2, const size_t length) 
         nproc = 1;
     }
 
-    const size_t tileSize = 250;
+    const size_t tileSize = 50000;
 
     const size_t tileCountI = (length + tileSize - 1) / tileSize;
     const size_t tileCountJ = (length + tileSize - 1) / tileSize;
